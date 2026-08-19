@@ -1,0 +1,582 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Launch, configure and download every file from any GitHub release with download_assets.py.">
+  <title>Release Cargo — Download a Complete GitHub Release</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --ink: #f4f1e8;
+      --muted: #aaa9a2;
+      --night: #111313;
+      --panel: #191c1b;
+      --line: rgba(244, 241, 232, .13);
+      --acid: #d8ff3e;
+      --cyan: #64ddea;
+      --orange: #ff7d4d;
+      --radius: 22px;
+      --shadow: 0 26px 80px rgba(0, 0, 0, .35);
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      background:
+        radial-gradient(circle at 82% 8%, rgba(100, 221, 234, .09), transparent 28rem),
+        radial-gradient(circle at 4% 30%, rgba(216, 255, 62, .07), transparent 24rem),
+        var(--night);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.6;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      z-index: -1;
+      opacity: .22;
+      background-image: linear-gradient(var(--line) 1px, transparent 1px), linear-gradient(90deg, var(--line) 1px, transparent 1px);
+      background-size: 52px 52px;
+      mask-image: linear-gradient(to bottom, black, transparent 75%);
+    }
+
+    a { color: inherit; }
+    button, input { font: inherit; }
+    button { cursor: pointer; }
+    .shell { width: min(1180px, calc(100% - 40px)); margin-inline: auto; }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      min-height: 82px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .brand { display: flex; align-items: center; gap: 12px; font-weight: 800; letter-spacing: -.02em; }
+    .brand-mark {
+      display: grid;
+      place-items: center;
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      background: var(--acid);
+      color: #121411;
+      box-shadow: 6px 6px 0 rgba(100, 221, 234, .5);
+    }
+    .brand-mark svg { width: 20px; }
+    .topbar nav { display: flex; gap: 24px; }
+    .topbar nav a { color: var(--muted); text-decoration: none; font-size: .88rem; }
+    .topbar nav a:hover, .topbar nav a:focus-visible { color: var(--acid); }
+
+    .hero {
+      display: grid;
+      grid-template-columns: 1.08fr .92fr;
+      gap: 72px;
+      align-items: center;
+      min-height: 680px;
+      padding: 72px 0 88px;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 9px;
+      margin: 0 0 22px;
+      color: var(--acid);
+      font-size: .76rem;
+      font-weight: 800;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+    }
+    .eyebrow::before { content: ""; width: 28px; height: 2px; background: currentColor; }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 {
+      max-width: 760px;
+      margin-bottom: 28px;
+      font-size: clamp(3.5rem, 8vw, 7.5rem);
+      line-height: .87;
+      letter-spacing: -.075em;
+      text-wrap: balance;
+    }
+    h1 em { color: var(--acid); font-family: Georgia, serif; font-weight: 400; }
+    .lede { max-width: 650px; margin-bottom: 34px; color: #c9c8c1; font-size: 1.16rem; }
+    .actions { display: flex; flex-wrap: wrap; gap: 12px; }
+    .button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 50px;
+      padding: 0 22px;
+      border: 1px solid var(--acid);
+      border-radius: 999px;
+      background: var(--acid);
+      color: #11130f;
+      font-weight: 800;
+      text-decoration: none;
+      transition: transform .2s ease, box-shadow .2s ease;
+    }
+    .button:hover { transform: translateY(-2px); box-shadow: 0 10px 30px rgba(216, 255, 62, .18); }
+    .button.secondary { border-color: var(--line); background: transparent; color: var(--ink); }
+
+    .cargo-visual {
+      position: relative;
+      min-height: 470px;
+      isolation: isolate;
+    }
+    .orbit {
+      position: absolute;
+      inset: 9% 2% 8% 12%;
+      border: 1px solid rgba(100, 221, 234, .35);
+      border-radius: 50%;
+      transform: rotate(-12deg);
+    }
+    .orbit::after {
+      content: "";
+      position: absolute;
+      top: 12%;
+      right: 7%;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: var(--cyan);
+      box-shadow: 0 0 28px var(--cyan);
+    }
+    .crate {
+      position: absolute;
+      inset: 20% 10% 13% 4%;
+      display: grid;
+      place-items: center;
+      border: 1px solid rgba(244, 241, 232, .18);
+      border-radius: 34px;
+      background: linear-gradient(145deg, #252927, #151716 70%);
+      box-shadow: var(--shadow);
+      transform: rotate(4deg);
+    }
+    .crate::before, .crate::after { content: ""; position: absolute; background: var(--acid); opacity: .9; }
+    .crate::before { inset: 0 22%; height: 10px; }
+    .crate::after { inset: 20% 0 auto; width: 10px; height: 60%; }
+    .crate svg { width: 46%; color: var(--acid); filter: drop-shadow(0 12px 18px rgba(216,255,62,.13)); }
+    .asset-pill {
+      position: absolute;
+      z-index: 2;
+      padding: 11px 15px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: rgba(25, 28, 27, .92);
+      box-shadow: 0 12px 24px rgba(0,0,0,.26);
+      font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+      font-size: .75rem;
+    }
+    .asset-pill:nth-of-type(1) { top: 12%; left: 1%; transform: rotate(-8deg); }
+    .asset-pill:nth-of-type(2) { top: 19%; right: 0; color: var(--cyan); transform: rotate(5deg); }
+    .asset-pill:nth-of-type(3) { bottom: 7%; left: 18%; color: var(--acid); transform: rotate(-3deg); }
+
+    .section { padding: 105px 0; border-top: 1px solid var(--line); }
+    .section-heading { display: grid; grid-template-columns: .65fr 1.35fr; gap: 50px; margin-bottom: 52px; }
+    .section-heading h2 { font-size: clamp(2.2rem, 5vw, 4.7rem); line-height: .97; letter-spacing: -.055em; text-wrap: balance; }
+    .section-heading p { max-width: 650px; color: var(--muted); font-size: 1.05rem; }
+
+    .generator {
+      display: grid;
+      grid-template-columns: .8fr 1.2fr;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--panel);
+      box-shadow: var(--shadow);
+    }
+    .form-panel { padding: 34px; border-right: 1px solid var(--line); }
+    .mode-note {
+      margin: 0 0 24px;
+      padding: 14px 16px;
+      border-left: 3px solid var(--acid);
+      background: rgba(216, 255, 62, .06);
+      color: #cfcec7;
+      font-size: .9rem;
+    }
+    .form-panel label { display: block; margin-bottom: 18px; color: var(--muted); font-size: .78rem; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; }
+    .form-panel input {
+      width: 100%;
+      margin-top: 8px;
+      padding: 13px 14px;
+      border: 1px solid var(--line);
+      border-radius: 11px;
+      outline: none;
+      background: #101211;
+      color: var(--ink);
+    }
+    .form-panel input:focus { border-color: var(--cyan); box-shadow: 0 0 0 3px rgba(100,221,234,.12); }
+    .output-panel { display: flex; flex-direction: column; justify-content: center; gap: 24px; padding: 34px; background: #0c0e0d; }
+    .terminal-top { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+    .terminal-top span { color: var(--muted); font-size: .78rem; text-transform: uppercase; letter-spacing: .1em; }
+    .copy {
+      padding: 8px 13px;
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      background: transparent;
+      color: var(--ink);
+    }
+    .copy:hover, .copy:focus-visible { border-color: var(--acid); color: var(--acid); }
+    pre { margin: 0; overflow-x: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
+    code { color: var(--cyan); font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+    .destination { padding-top: 20px; border-top: 1px solid var(--line); }
+    .destination strong { display: block; margin-bottom: 6px; color: var(--muted); font-size: .76rem; letter-spacing: .1em; text-transform: uppercase; }
+    .destination code { color: var(--acid); }
+
+    .benefits { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+    .benefit { min-height: 245px; padding: 27px; border: 1px solid var(--line); border-radius: var(--radius); background: rgba(25,28,27,.74); }
+    .benefit .number { display: block; margin-bottom: 42px; color: var(--acid); font-family: Georgia, serif; font-size: 1.25rem; font-style: italic; }
+    .benefit h3 { font-size: 1.35rem; letter-spacing: -.025em; }
+    .benefit p { margin-bottom: 0; color: var(--muted); font-size: .94rem; }
+
+    .download-card {
+      display: grid;
+      grid-template-columns: 1.15fr .85fr;
+      gap: 40px;
+      align-items: center;
+      padding: clamp(30px, 6vw, 66px);
+      overflow: hidden;
+      border: 1px solid rgba(216, 255, 62, .28);
+      border-radius: var(--radius);
+      background:
+        radial-gradient(circle at 92% 10%, rgba(100, 221, 234, .16), transparent 18rem),
+        linear-gradient(135deg, #20251e, #151816);
+      box-shadow: var(--shadow);
+    }
+    .download-card h2 { margin-bottom: 20px; font-size: clamp(2.4rem, 5vw, 5.1rem); line-height: .92; letter-spacing: -.06em; }
+    .download-card p { max-width: 650px; color: #c5c5be; }
+    .package-meta { display: grid; gap: 10px; margin: 28px 0; }
+    .package-meta span { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: .88rem; }
+    .package-meta span::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--acid); box-shadow: 0 0 14px rgba(216,255,62,.55); }
+    .download-button { width: 100%; min-height: 64px; border: 0; }
+    .download-button:disabled { cursor: wait; opacity: .68; transform: none; box-shadow: none; }
+    .download-actions { display: grid; gap: 12px; }
+    .download-actions .secondary { width: 100%; }
+    .download-status { min-height: 1.5em; margin: 2px 0 0; color: var(--cyan); font-size: .82rem; text-align: center; }
+    .download-status.error { color: var(--orange); }
+    .verify-box { padding: 25px; border: 1px solid var(--line); border-radius: 16px; background: rgba(8,10,9,.72); }
+    .verify-box strong { display: block; margin-bottom: 12px; color: var(--acid); font-size: .78rem; letter-spacing: .11em; text-transform: uppercase; }
+    .verify-box pre + strong { margin-top: 24px; }
+
+    .steps { counter-reset: steps; display: grid; gap: 2px; }
+    .step {
+      counter-increment: steps;
+      display: grid;
+      grid-template-columns: 80px .8fr 1.2fr;
+      gap: 28px;
+      padding: 30px 0;
+      border-top: 1px solid var(--line);
+    }
+    .step::before { content: "0" counter(steps); color: var(--acid); font: italic 1.2rem Georgia, serif; }
+    .step h3 { margin: 0; font-size: 1.22rem; }
+    .step p { margin: 0; color: var(--muted); }
+    .inline-code { padding: 2px 7px; border: 1px solid var(--line); border-radius: 6px; background: #0c0e0d; color: var(--cyan); }
+
+    details { border-top: 1px solid var(--line); }
+    details:last-child { border-bottom: 1px solid var(--line); }
+    summary { display: flex; justify-content: space-between; gap: 20px; padding: 22px 0; cursor: pointer; font-weight: 750; list-style: none; }
+    summary::-webkit-details-marker { display: none; }
+    summary::after { content: "+"; color: var(--acid); font-size: 1.4rem; }
+    details[open] summary::after { content: "−"; }
+    details p { max-width: 780px; padding-bottom: 22px; color: var(--muted); }
+
+    footer { display: flex; justify-content: space-between; gap: 24px; padding: 42px 0 60px; color: var(--muted); font-size: .85rem; }
+    .reveal { opacity: 0; transform: translateY(18px); transition: opacity .65s ease, transform .65s ease; }
+    .reveal.visible { opacity: 1; transform: none; }
+
+    @media (max-width: 820px) {
+      .topbar nav { display: none; }
+      .hero, .section-heading, .generator, .download-card { grid-template-columns: 1fr; }
+      .hero { gap: 24px; padding-top: 54px; }
+      .cargo-visual { min-height: 390px; }
+      .form-panel { border-right: 0; border-bottom: 1px solid var(--line); }
+      .benefits { grid-template-columns: 1fr; }
+      .step { grid-template-columns: 50px 1fr; }
+      .step p { grid-column: 2; }
+    }
+    @media (max-width: 520px) {
+      .shell { width: min(100% - 24px, 1180px); }
+      h1 { font-size: 3.65rem; }
+      .section { padding: 78px 0; }
+      .cargo-visual { min-height: 320px; }
+      .crate { inset: 21% 3% 13%; }
+      .asset-pill:nth-of-type(2) { right: 2%; }
+      footer { flex-direction: column; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+      .reveal { opacity: 1; transform: none; }
+    }
+  </style>
+</head>
+<body>
+  <header class="shell topbar">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 3v12m0 0 5-5m-5 5-5-5M4 19h16"/></svg>
+      </span>
+      Release Cargo
+    </div>
+    <nav aria-label="Main navigation">
+      <a href="#command">Launch builder</a>
+      <a href="#download">Download</a>
+      <a href="#workflow">How it works</a>
+      <a href="#help">Help</a>
+    </nav>
+  </header>
+
+  <main>
+    <section class="shell hero">
+      <div>
+        <p class="eyebrow">Interactive release launcher</p>
+        <h1>Launch once.<br><em>Land it all.</em></h1>
+        <p class="lede">Enter an author, project and release. One lightweight Python launcher retrieves every published asset plus both source-code archives, then files everything inside a dedicated local folder.</p>
+        <div class="actions">
+          <a class="button" href="#command">Configure the launcher</a>
+          <a class="button secondary" href="#download">Get the complete bundle</a>
+        </div>
+      </div>
+      <div class="cargo-visual" aria-label="A visual representation of release assets being collected">
+        <div class="orbit"></div>
+        <div class="crate">
+          <svg viewBox="0 0 120 120" fill="none" stroke="currentColor" stroke-width="5" aria-hidden="true">
+            <path d="M18 39 60 17l42 22v47L60 108 18 86V39Z"/><path d="m18 39 42 23 42-23M60 62v46M40 28l42 23"/>
+          </svg>
+        </div>
+        <span class="asset-pill">application.exe</span>
+        <span class="asset-pill">portable.zip</span>
+        <span class="asset-pill">checksums.txt</span>
+      </div>
+    </section>
+
+    <section class="section" id="command">
+      <div class="shell">
+        <div class="section-heading reveal">
+          <p class="eyebrow">Launch builder</p>
+          <div>
+            <h2>Three values. One complete release.</h2>
+            <p>Enter the author, project and release tag. The exact PowerShell command and destination folder update instantly.</p>
+          </div>
+        </div>
+        <div class="generator reveal">
+          <form class="form-panel" id="command-form">
+            <p class="mode-note">Run this generated command directly, or run <code>python3 .\download_assets.py</code> with no parameters to enter the same values in the interactive launcher.</p>
+            <label>Author or organization
+              <input id="owner" value="rustdesk" autocomplete="off" spellcheck="false">
+            </label>
+            <label>Project or repository
+              <input id="repository" value="rustdesk" autocomplete="off" spellcheck="false">
+            </label>
+            <label>Release or tag
+              <input id="tag" value="1.4.9" autocomplete="off" spellcheck="false">
+            </label>
+          </form>
+          <div class="output-panel" aria-live="polite">
+            <div class="terminal-top">
+              <span>PowerShell / terminal</span>
+              <button class="copy" id="copy-command" type="button">Copy command</button>
+            </div>
+            <pre><code id="generated-command">python3 .\download_assets.py rustdesk rustdesk 1.4.9</code></pre>
+            <div class="destination">
+              <strong>Files arrive in</strong>
+              <code id="generated-folder">Assets release 1.4.9\</code>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="shell">
+        <div class="section-heading reveal">
+          <p class="eyebrow">Why it earns its place</p>
+          <div><h2>Release retrieval, without the busywork.</h2></div>
+        </div>
+        <div class="benefits">
+          <article class="benefit reveal"><span class="number">01</span><h3>Complete by default</h3><p>Every attached asset is fetched—plus the ZIP and TAR.GZ source-code archives that GitHub adds to each release.</p></article>
+          <article class="benefit reveal"><span class="number">02</span><h3>Effortless to launch</h3><p>Supply all three values in one command, or omit them and let the launcher request each value interactively.</p></article>
+          <article class="benefit reveal"><span class="number">03</span><h3>Safe and organized</h3><p>Downloads use temporary files and land in a release folder such as <code>Assets release 1.4.9</code>, right beside the script.</p></article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="download">
+      <div class="shell">
+        <div class="download-card reveal">
+          <div>
+            <p class="eyebrow">Production package</p>
+            <h2>Everything you need. One click.</h2>
+            <p>Download the ultra-compressed Release Cargo bundle and its SHA-256 checksum together. The package contains the Python launcher and this complete interactive guide.</p>
+            <div class="package-meta">
+              <span>LZMA2 ultra-extreme compression</span>
+              <span>Portable Python launcher and standalone HTML5 guide</span>
+              <span>Independent SHA-256 integrity file</span>
+            </div>
+            <div class="download-actions">
+              <button class="button download-button" id="download-combo" type="button">Download bundle + SHA-256</button>
+              <a class="button secondary" href="https://github.com/michele-tn/Download-the-Latest-Release-Assets-from-GitHub-with-Python./blob/main/download_assets.py?raw=1">Download Python launcher only</a>
+              <p class="download-status" id="download-status" role="status" aria-live="polite"></p>
+            </div>
+          </div>
+          <div class="verify-box">
+            <strong>Package</strong>
+            <pre><code>release-cargo-v1.0.0.tar.xz</code></pre>
+            <strong>Verify in PowerShell</strong>
+            <pre><code>Get-FileHash .\release-cargo-v1.0.0.tar.xz -Algorithm SHA256</code></pre>
+            <strong>Extract</strong>
+            <pre><code>tar -xJf .\release-cargo-v1.0.0.tar.xz</code></pre>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="workflow">
+      <div class="shell">
+        <div class="section-heading reveal">
+          <p class="eyebrow">60-second workflow</p>
+          <div><h2>From release page to local archive.</h2></div>
+        </div>
+        <div class="steps">
+          <article class="step reveal"><h3>Confirm Python</h3><p>Open PowerShell or a terminal and run <code class="inline-code">python --version</code>. Python 3.9 or later is recommended.</p></article>
+          <article class="step reveal"><h3>Open the script folder</h3><p>Keep <code class="inline-code">download_assets.py</code> where release folders should be created, then open PowerShell in that directory.</p></article>
+          <article class="step reveal"><h3>Choose a launch mode</h3><p>Run <code class="inline-code">python3 .\download_assets.py</code> for guided prompts, or use the generated command above for a direct, repeatable launch.</p></article>
+          <article class="step reveal"><h3>Collect the complete release</h3><p>Press Enter and follow live progress for all attached assets and both source archives. The launcher reports a clear error and non-zero exit code if any transfer fails.</p></article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="help">
+      <div class="shell">
+        <div class="section-heading reveal">
+          <p class="eyebrow">Useful details</p>
+          <div><h2>Built for real release work.</h2></div>
+        </div>
+        <details class="reveal"><summary>What happens if I run the same command twice?</summary><p>Existing assets with the same names are replaced only after their new downloads complete. Interrupted transfers remain temporary and are removed automatically.</p></details>
+        <details class="reveal"><summary>What does interactive mode ask for?</summary><p>The launcher requests the author or organization, the project or repository name, and the release tag. Empty values are rejected before any network request begins.</p></details>
+        <details class="reveal"><summary>Can it download private repository assets?</summary><p>The script supports a <code class="inline-code">GITHUB_TOKEN</code> environment variable. Set a token that has permission to read the repository before running the command.</p></details>
+        <details class="reveal"><summary>What if GitHub applies an API rate limit?</summary><p>Set <code class="inline-code">$env:GITHUB_TOKEN = "your-token"</code> in PowerShell, then run the command in the same session. Authenticated API requests receive a higher rate limit.</p></details>
+        <details class="reveal"><summary>Where is the destination folder created?</summary><p>Always beside the Python script—not in whichever folder the terminal happens to use. Characters that Windows does not allow in folder names are safely replaced.</p></details>
+      </div>
+    </section>
+  </main>
+
+  <footer class="shell">
+    <span>Release Cargo / Interactive guide</span>
+    <span>One command. The complete release.</span>
+  </footer>
+
+  <script>
+    const fields = {
+      owner: document.querySelector('#owner'),
+      repository: document.querySelector('#repository'),
+      tag: document.querySelector('#tag')
+    };
+    const command = document.querySelector('#generated-command');
+    const folder = document.querySelector('#generated-folder');
+    const copyButton = document.querySelector('#copy-command');
+    const comboButton = document.querySelector('#download-combo');
+    const downloadStatus = document.querySelector('#download-status');
+
+    function shellQuote(value) {
+      const clean = value.trim();
+      return /^[A-Za-z0-9._-]+$/.test(clean) ? clean : `"${clean.replaceAll('"', '\\"')}"`;
+    }
+
+    function safeFolderTag(value) {
+      return value.replace(/[<>:"/\\|?*\u0000-\u001f]/g, '_').trim().replace(/[. ]+$/g, '') || 'no tag';
+    }
+
+    function updateCommand() {
+      command.textContent = `python3 .\\download_assets.py ${shellQuote(fields.owner.value)} ${shellQuote(fields.repository.value)} ${shellQuote(fields.tag.value)}`;
+      folder.textContent = `Assets release ${safeFolderTag(fields.tag.value)}\\`;
+    }
+
+    Object.values(fields).forEach((field) => field.addEventListener('input', updateCommand));
+    document.querySelector('#command-form').addEventListener('submit', (event) => event.preventDefault());
+
+    copyButton.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(command.textContent);
+        copyButton.textContent = 'Copied';
+      } catch {
+        const selection = window.getSelection();
+        const range = document.createRange();
+        range.selectNodeContents(command);
+        selection.removeAllRanges();
+        selection.addRange(range);
+        copyButton.textContent = 'Selected';
+      }
+      window.setTimeout(() => { copyButton.textContent = 'Copy command'; }, 1600);
+    });
+
+    const comboFiles = [
+      {
+        name: 'release-cargo-v1.0.0.tar.xz',
+        url: 'https://raw.githubusercontent.com/michele-tn/Download-the-Latest-Release-Assets-from-GitHub-with-Python./refs/heads/main/release-cargo-v1.0.0.tar.xz'
+      },
+      {
+        name: 'release-cargo-v1.0.0.tar.xz.sha256',
+        url: 'https://raw.githubusercontent.com/michele-tn/Download-the-Latest-Release-Assets-from-GitHub-with-Python./refs/heads/main/release-cargo-v1.0.0.tar.xz.sha256'
+      }
+    ];
+
+    function saveBlob(blob, fileName) {
+      const objectUrl = URL.createObjectURL(blob);
+      try {
+        const link = document.createElement('a');
+        link.href = objectUrl;
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+      } finally {
+        window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+      }
+    }
+
+    comboButton.addEventListener('click', async () => {
+      comboButton.disabled = true;
+      comboButton.textContent = 'Preparing both files…';
+      downloadStatus.classList.remove('error');
+      downloadStatus.textContent = 'Securely retrieving the bundle and checksum.';
+
+      try {
+        const downloads = await Promise.all(comboFiles.map(async (file) => {
+          const response = await fetch(file.url, { cache: 'no-store' });
+          if (!response.ok) {
+            throw new Error(`${file.name}: HTTP ${response.status}`);
+          }
+          return { name: file.name, blob: await response.blob() };
+        }));
+
+        downloads.forEach((file) => saveBlob(file.blob, file.name));
+        downloadStatus.textContent = 'Both downloads have started.';
+      } catch (error) {
+        downloadStatus.classList.add('error');
+        downloadStatus.textContent = 'Download failed. Please try again.';
+        console.error('Release Cargo download failed:', error);
+      } finally {
+        comboButton.disabled = false;
+        comboButton.textContent = 'Download bundle + SHA-256';
+      }
+    });
+
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('visible');
+          observer.unobserve(entry.target);
+        }
+      });
+    }, { threshold: .12 });
+    document.querySelectorAll('.reveal').forEach((element) => observer.observe(element));
+  </script>
+</body>
+</html>
